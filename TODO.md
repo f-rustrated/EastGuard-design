@@ -13,11 +13,7 @@ and ~10 high-severity gaps that must be resolved before implementation.
 
 ── HIGH-SEVERITY GAPS (resolve before the affected phase) ──────────
 
-[H1] WAL itself is not fsynced — only data.seg is
-The plan says "WAL write → segment file (O_DIRECT) → fsync"
-The fsync covers the segment file. The WAL uses normal I/O.
-On power failure, the WAL lives only in OS buffers → data loss.
-→ WAL write must also fsync before data.seg write begins.
+✓ [H1] WAL not fsynced → resolved: fsync(wal) before data.seg write. Pipeline: write WAL → fsync WAL → write data.seg → fsync data.seg + fence → delete WAL entries
 
 [H2] RocksDB index can diverge from data.seg after crash
 Pipeline: WAL → data.seg → fsync → RocksDB index → ACK
