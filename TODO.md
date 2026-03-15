@@ -17,13 +17,7 @@ and ~10 high-severity gaps that must be resolved before implementation.
 
 ✓ [H2] RocksDB index divergence → resolved: last_indexed_position stored atomically with index writes via RocksDB WriteBatch; recovery scans only the gap between last_indexed_position and last fence. See WAL_data_rocksdb.md
 
-[H3] 256 Raft groups per node — resource cost unanalyzed
-256 Raft groups × (heartbeat timers + log FDs + snapshot FDs + memtables)
-At 150ms heartbeat: ~1700 heartbeat msgs/sec per node at idle.
-256 RocksDB instances for coordinator state: ~512 background threads
-+ ~2GB block cache by default.
-→ Either reduce vnodes_per_node significantly, or use a single
-shared Raft log with logical partitioning (MultiRaft style).
+✓ [H3] 256 Raft groups resource cost → resolved: MultiRaft with shared Raft log (group_id per entry, 1 fsync via group commit) + single shared RocksDB instance per node. See WAL_data_rocksdb.md
 
 ✓ [H4] O_DIRECT alignment → resolved in B2.md (batch-level align_up at flush time)
 

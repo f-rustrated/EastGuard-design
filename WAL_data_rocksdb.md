@@ -79,3 +79,34 @@ consistent. Scanning only from there to the fence avoids O(segment size) work on
 **Bootstrap condition for new Raft group (from B1):**
 Before using a survivor's data.seg to seed a new group, the survivor must have been the Raft leader or a quorum of the
 old group must be alive — guaranteeing the survivor holds all committed entries.
+
+---
+
+## MultiRaft: Shared Raft Log (H3)
+
+A single Raft log is shared across all vnode groups on a node. Every entry is tagged with `group_id` to identify its Raft group.
+
+**Why shared log:**
+256 independent Raft logs = 256 fsyncs per commit round (~25ms overhead at 100μs/fsync on SSD). A shared log reduces this to 1 fsync via group commit, regardless of vnode count.
+
+**Why group_id overhead is acceptable:**
+`group_id: u32` adds 4 bytes per entry. A typical Raft entry carrying a producer batch is hundreds to thousands of bytes — well under 1% overhead.
+
+---
+
+## RocksDB Responsibilities
+
+One shared RocksDB instance per node covers all vnode metadata. data.seg remains a separate append-only file; RocksDB holds only the index into it.
+
+**What RocksDB stores:**
+
+| Category | Fields |
+|---|---|
+| Raft hard state (per group) | `group_id`, `current_term`, `voted_for`, `commit_index`, `last_applied` |
+| Segment metadata (per segment) | `segment_id`, `topic_id`, `range_id`, `state`, `replica_set`, `size_bytes`, `created_at`, `sealed_at` |
+| Data index | `(topic_id, range_id, logical_offset)` → `(segment_id, physical_byte_offset)` |
+| Housekeeping | `last_indexed_position`, `persisted_last_offset_raft_log` |
+| Consumer group offsets | `(consumer_group_id, topic_id, range_id)` → `committed_offset` *(deferred — D3)* |
+
+**Why `topic_id` instead of topic name:**
+Variable-length string keys make composite key construction and prefix scans fragile. A fixed-size `u64` topic_id produces compact, predictable keys and enables efficient seek-then-scan in RocksDB. A separate `topic_name → topic_id` mapping is stored for lookup.
