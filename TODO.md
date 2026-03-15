@@ -15,11 +15,7 @@ and ~10 high-severity gaps that must be resolved before implementation.
 
 ✓ [H1] WAL not fsynced → resolved: fsync(wal) before data.seg write. Pipeline: write WAL → fsync WAL → write data.seg → fsync data.seg + fence → delete WAL entries
 
-[H2] RocksDB index can diverge from data.seg after crash
-Pipeline: WAL → data.seg → fsync → RocksDB index → ACK
-Crash after fsync but before index write: records in data.seg,
-index doesn't know. Without a WAL fence (B2), there's no recovery path.
-→ Index write must be atomic with the WAL fence record.
+✓ [H2] RocksDB index divergence → resolved: last_indexed_position stored atomically with index writes via RocksDB WriteBatch; recovery scans only the gap between last_indexed_position and last fence. See WAL_data_rocksdb.md
 
 [H3] 256 Raft groups per node — resource cost unanalyzed
 256 Raft groups × (heartbeat timers + log FDs + snapshot FDs + memtables)
