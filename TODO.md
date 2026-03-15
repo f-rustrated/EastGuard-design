@@ -7,31 +7,9 @@ and ~10 high-severity gaps that must be resolved before implementation.
 
 ── STRUCTURAL BLOCKERS (must resolve before writing code) ──────────
 
-[B1] SWIM and Raft are two separate membership systems — plan conflates them
-SWIM says: "node N is dead"
-Raft says: "node N is still a voter in group G"
-These diverge during failures. Who initiates ConfChange to remove N from
-Raft groups? If N held a Raft majority, the group stalls and cannot commit
-the removal.
-→ Need: explicit bridge protocol between SWIM NodeDead → Raft ConfChange,
-with a defined procedure for single-node-loss quorum recovery.
-
-[B2] WAL → segment transition has no atomic completion marker
-"wal.log is deleted once fully reflected in data.seg" — but "fully reflected"
-is never checkable without scanning the entire segment file.
-A crash between segment fsync and WAL deletion leaves ambiguous state:
-re-applying WAL duplicates records; skipping it loses records.
-→ Need: a crash-safe "WAL fence" record appended to data.seg atomically
-with the final flush, so startup can check the last byte of data.seg
-rather than scanning it entirely.
-
-[B3] Replication protocol is a placeholder ("fsync all replicas")
-Who coordinates writes to followers? Fan-out or chain? What quorum
-is required for ACK — all replicas, majority, one?
-What happens if one replica fsyncs and two crash mid-batch?
-Until this is specified, ACK durability guarantees are undefined.
-→ Need: pick a model (chain replication or parallel fan-out + quorum ACK)
-and define it explicitly before implementing produce sessions.
+✓ [B1] SWIM ↔ Raft bridge protocol → resolved, see B1.md
+✓ [B2] WAL → segment transition atomic completion marker → resolved, see B2.md
+✓ [B3] Replication protocol → resolved, see B3.md
 
 ── HIGH-SEVERITY GAPS (resolve before the affected phase) ──────────
 
@@ -55,11 +33,7 @@ At 150ms heartbeat: ~1700 heartbeat msgs/sec per node at idle.
 → Either reduce vnodes_per_node significantly, or use a single
 shared Raft log with logical partitioning (MultiRaft style).
 
-[H4] O_DIRECT requires block-aligned writes — plan has no alignment strategy
-Variable-length records produce non-aligned batches.
-O_DIRECT returns EINVAL or silently corrupts on non-512-byte-aligned writes.
-→ Batch accumulator must pad to block boundary before flush,
-with posix_memalign buffers.
+✓ [H4] O_DIRECT alignment → resolved in B2.md (batch-level align_up at flush time)
 
 [H5] Stale ring views across brokers → duplicate CreateTopic
 SWIM gossip propagates in O(log N) rounds. During that window, broker A
